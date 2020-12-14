@@ -11,19 +11,43 @@ from model import *
 import pyaudio
 import numpy as np
 
+import os
+os.environ['KMP_DUPLICATE_LIB_OK']='True'
+
+from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
+from tensorflow.keras.preprocessing.image import img_to_array
+from tensorflow.keras.models import load_model
+from imutils.video import VideoStream
+import numpy as np
+import argparse
+import imutils
+import time
+import cv2
+
+import serial
+import syslog
+import time
+
 import socket
 import time
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-ip = '192.168.0.5'
+ip = '192.168.0.6'
 port = 30001
 
-total_score = 0
-scene_number = 1
+import threading
+
 
 CHUNK = 4096 # number of data points to read at a time
 RATE = 44100 # time resolution of the recording device (Hz)
+
+total_score = 0
+scene_number = 1
+status = 9999
+mask = 1
 sw = 0
 duration = 0
+coin = 0
+judgement = 0
 
 def load_trained_model(model_path):
     model = Face_Emotion_CNN()
@@ -85,6 +109,145 @@ def FER_live_cam():
     cv2.destroyAllWindows()
     return state, ps_state
 
+def detect_and_predict_mask(frame, faceNet, maskNet):
+	(h, w) = frame.shape[:2]
+	blob = cv2.dnn.blobFromImage(frame, 1.0, (300, 300),
+		(104.0, 177.0, 123.0))
+
+	# pass the blob through the network and obtain the face detections
+	faceNet.setInput(blob)
+	detections = faceNet.forward()
+
+	# initialize our list of faces, their corresponding locations,
+	# and the list of predictions from our face mask network
+	faces = []
+	locs = []
+	preds = []
+
+	# loop over the detections
+	for i in range(0, detections.shape[2]):
+		# extract the confidence (i.e., probability) associated with
+		# the detection
+		confidence = detections[0, 0, i, 2]
+
+		# filter out weak detections by ensuring the confidence is
+		# greater than the minimum confidence
+		if confidence > args["confidence"]:
+			# compute the (x, y)-coordinates of the bounding box for
+			# the object
+			box = detections[0, 0, i, 3:7] * np.array([w, h, w, h])
+			(startX, startY, endX, endY) = box.astype("int")
+
+			# ensure the bounding boxes fall within the dimensions of
+			# the frame
+			(startX, startY) = (max(0, startX), max(0, startY))
+			(endX, endY) = (min(w - 1, endX), min(h - 1, endY))
+
+			# extract the face ROI, convert it from BGR to RGB channel
+			# ordering, resize it to 224x224, and preprocess it
+			face = frame[startY:endY, startX:endX]
+			face = cv2.cvtColor(face, cv2.COLOR_BGR2RGB)
+			face = cv2.resize(face, (224, 224))
+			face = img_to_array(face)
+			face = preprocess_input(face)
+
+			# add the face and bounding boxes to their respective
+			# lists
+			faces.append(face)
+			locs.append((startX, startY, endX, endY))
+
+	# only make a predictions if at least one face was detected
+	if len(faces) > 0:
+		# for faster inference we'll make batch predictions on *all*
+		# faces at the same time rather than one-by-one predictions
+		# in the above `for` loop
+		faces = np.array(faces, dtype="float32")
+		preds = maskNet.predict(faces, batch_size=32)
+
+	# return a 2-tuple of the face locations and their corresponding
+	# locations
+	return (locs, preds)
+
+def mask_detection():
+    decision = 0
+    TIMER = int(2)
+    # construct the argument parser and parse the arguments
+
+    # load our serialized face detector model from disk
+    print("[INFO] loading face detector model...")
+    prototxtPath = os.path.sep.join([args["face"], "deploy.prototxt"])
+    weightsPath = os.path.sep.join([args["face"],
+                                    "res10_300x300_ssd_iter_140000.caffemodel"])
+    faceNet = cv2.dnn.readNet(prototxtPath, weightsPath)
+
+    # load the face mask detector model from disk
+    print("[INFO] loading face mask detector model...")
+    maskNet = load_model(args["model"])
+
+    # initialize the video stream and allow the camera sensor to warm up
+    print("[INFO] starting video stream...")
+    vs = VideoStream(src=0).start()
+    time.sleep(2.0)
+    prev = time.time()
+    # loop over the frames from the video stream
+
+    while TIMER >= 0:
+        # grab the frame from the threaded video stream and resize it
+        # to have a maximum width of 400 pixels
+        frame = vs.read()
+        frame = imutils.resize(frame, width=400)
+
+        # detect faces in the frame and determine if they are wearing a
+        # face mask or not
+        (locs, preds) = detect_and_predict_mask(frame, faceNet, maskNet)
+
+        # loop over the detected face locations and their corresponding
+        # locations
+        for (box, pred) in zip(locs, preds):
+            # unpack the bounding box and predictions
+            (startX, startY, endX, endY) = box
+            (mask, withoutMask) = pred
+
+            # determine the class label and color we'll use to draw
+            # the bounding box and text
+            # label = "Mask" if mask > withoutMask else "No Mask"
+
+            if mask > withoutMask:
+                label = "Mask"
+                decision = 0
+            else:
+                label = "No Mask"
+                decision = 1
+            color = (0, 255, 0) if label == "Mask" else (0, 0, 255)
+
+            # include the probability in the label
+            label = "{}: {:.2f}%".format(label, max(mask, withoutMask) * 100)
+
+            # display the label and bounding box rectangle on the output
+            # frame
+            cv2.putText(frame, label, (startX, startY - 10),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.45, color, 2)
+            cv2.rectangle(frame, (startX, startY), (endX, endY), color, 2)
+
+        # show the output frame
+        # cv2.imshow("Frame", frame)
+        key = cv2.waitKey(1) & 0xFF
+        cur = time.time()
+        # if the `q` key was pressed, break from the loop
+        if cur - prev >= 1:
+            prev = cur
+            TIMER = TIMER - 1
+        if key == ord("q"):
+            break
+
+    # do a bit of cleanup
+    # cv2.destroyAllWindows()
+    vs.stop()
+    return decision
+
+def socket_communication(val):
+    sock.sendto(val.encode(), (ip, port))
+
 def emotion_classification():
     global scene_number
     # {0: 'neutral', 1: 'happiness', 2: 'surprise', 3: 'sadness', 4: 'anger', 5: 'disguest', 6: 'fear'}
@@ -94,7 +257,7 @@ def emotion_classification():
     else:
         state_string = str(scene_number)+",0,0,"+str(ps_state)[9:-3]
     print(state_string)
-    sock.sendto(state_string.encode(), (ip, port))
+    socket_communication(state_string)
     if state == 1:
         return 1
     else:
@@ -110,7 +273,7 @@ def cal_average(num):
 
 def scene():
     print(str(scene_number)+", TTS OUTPUT")
-    time.sleep(6)
+    time.sleep(5)
     print(str(scene_number)+", TTS END")
     sw = 0
 
@@ -125,7 +288,7 @@ def scene():
         data = np.fromstring(stream.read(CHUNK),dtype=np.int16)
         
         for d in data:
-            if abs(d) > 10000:
+            if abs(d) > 5000:
                 print("START")
                 duration = 0
                 val.append(emotion_classification())
@@ -151,33 +314,108 @@ def scene():
         return 1
 
 def eval():
-    global total_score
+    global total_score, judgement
     if total_score <= -2:
         print('매우부정')
         txt = str(scene_number)+",0,1"
-        sock.sendto(txt.encode(), (ip, port))
+        judgement=1
+        socket_communication(txt)
 
     elif total_score < 0:
         print('부정')
         txt = str(scene_number)+",0,2"
-        sock.sendto(txt.encode(), (ip, port))
+        judgement=2
+        socket_communication(txt)
 
     elif total_score >= 2:
         print('매우긍정')
         txt = str(scene_number)+",0,4"
-        sock.sendto(txt.encode(), (ip, port))
+        judgement=3
+        socket_communication(txt)
 
     else:
         print('긍정')
         txt = str(scene_number)+",0,3"
-        sock.sendto(txt.encode(), (ip, port))
+        judgement=4
+        socket_communication(txt)
+
+def coin_detect():
+    global coin, status
+    port = '/dev/ttyACM0'
+    ard = serial.Serial(port,9600,timeout=5)
+    time.sleep(2)
+    i = 0
+    coin = 0
+
+    while True:
+        msg = ard.read()
+        # print ("Message from arduino: ")
+        mess = str(msg)[2:3]
+        if(mess != "r" and mess != "n" and mess != "\\"):
+            # print (mess)
+            if(mess.isdigit()):
+                status = int(mess)
+            socket_communication(str(scene_number)+","+str(mask)+","+str(judgement)+",arduino,"+mess)
+            if(mess == "I"):
+                coin = 1
+
+ap = argparse.ArgumentParser()
+ap.add_argument("-f", "--face", type=str,
+                    default="face_detector",
+                    help="path to face detector model directory")
+ap.add_argument("-m", "--model", type=str,
+                    default="mask_detector.model",
+                    help="path to trained face mask detector model")
+ap.add_argument("-c", "--confidence", type=float, default=0.5,
+                    help="minimum probability to filter weak detections")
+args = vars(ap.parse_args())
 
 if __name__ == "__main__":
-    for i in range(5):
-        total_score += scene()
-        print(total_score)
-        scene_number+=1
-    eval()
+    # 기기 앞에 사람 있는지 감지 필요 (1)
+    
+    my_thread = threading.Thread(target=coin_detect)
+    my_thread.start()
+    while True:
+        total_score = 0
+        scene_number = 1
+        status = 9999
+        sw = 0
+        duration = 0
+        coin = 0
+        mask = 1
+        judgement = 0
+        print(status)
+        if(status <= 4): # ultrasonic sensor
+            print(str(scene_number)+ ", TTS WAIT")
+            time.sleep(5)
+            scene_number += 1
+            # Mask Detection (2)
+            mask = mask_detection()
+            if mask == 0:
+                print("마스크 착용으로 진행 불가")
+                socket_communication("2,1,0")
+            else:
+                print("continue")
+                socket_communication("2,0,0")
+                for i in range(2): # (3,4)
+                    total_score += scene()
+                    print(total_score)
+                    scene_number+=1
+                scene_number+=1
+                eval() # 금액 제시 및 최종 판정 (5,6)
+                print(str(scene_number)+ ", TTS WAIT")
+                time.sleep(5)
+                coin = 0
+                while(coin != 1):
+                    print("INSERT COIN")
+                scene_number+=1
+                eval()
+                print(str(scene_number)+ ", TTS WAIT")
+                time.sleep(5)
+                scene_number+=1
+                socket_communication(str(scene_number) + "," + str(mask) + "," + str(judgement))
+                print("RESTART, PLEASE WAIT 10 SECONDS")
+                time.sleep(10)
 
 # if __name__ == "__main__":
 #     state = FER_live_cam()
