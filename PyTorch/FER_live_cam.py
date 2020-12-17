@@ -26,12 +26,12 @@ import cv2
 
 import serial
 import syslog
-import time
+import random
 
 import socket
 import time
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-ip = '192.168.0.6'
+ip = '192.168.0.8'
 port = 30001
 
 import threading
@@ -43,11 +43,18 @@ RATE = 44100 # time resolution of the recording device (Hz)
 total_score = 0
 scene_number = 1
 status = 9999
-mask = 1
+mask = 0
 sw = 0
 duration = 0
 coin = 0
 judgement = 0
+sub_scene=0
+
+storage = [5,5,5,5,5,5]
+
+portar = '/dev/ttyACM0'
+ard = serial.Serial(portar,9600,timeout=5)
+time.sleep(2)
 
 def load_trained_model(model_path):
     model = Face_Emotion_CNN()
@@ -253,9 +260,9 @@ def emotion_classification():
     # {0: 'neutral', 1: 'happiness', 2: 'surprise', 3: 'sadness', 4: 'anger', 5: 'disguest', 6: 'fear'}
     state, ps_state = FER_live_cam()
     if str(ps_state) == 987654321:
-        state_string = str(scene_number)+",0,0,0"
+        state_string = str(scene_number)+","+str(scene_number*10+sub_scene)+",0,0,0"
     else:
-        state_string = str(scene_number)+",0,0,"+str(ps_state)[9:-3]
+        state_string = str(scene_number)+","+str(scene_number*10+sub_scene)+",0,0,0"+str(ps_state)[9:-3]
     print(state_string)
     socket_communication(state_string)
     if state == 1:
@@ -272,6 +279,8 @@ def cal_average(num):
     return avg
 
 def scene():
+    global sub_scene
+    
     print(str(scene_number)+", TTS OUTPUT")
     time.sleep(5)
     print(str(scene_number)+", TTS END")
@@ -307,43 +316,94 @@ def scene():
     print(value)
 
     if value < 0:
-        print(-1)
+        print(str(scene_number)+","+str(scene_number*10+2)+",0")
+        sub_scene=2
+        # socket_communication(str(scene_number)+",999999999")
+        socket_communication(str(scene_number)+","+str(scene_number*10+2)+",0")
+        time.sleep(3)
         return -1
     else:
-        print(1)
+        print(str(scene_number)+","+str(scene_number*10+1)+",0")
+        sub_scene=1
+        # socket_communication(str(scene_number)+",999999999")
+        socket_communication(str(scene_number)+","+str(scene_number*10+2)+",0")
+        time.sleep(3)
         return 1
 
-def eval():
-    global total_score, judgement
+def eval(judge):
+    global total_score, judgement, sub_scene
+    sum_storage = 0
+    for i in range(1,6):
+       sum_storage += storage[i]
+    if(sum_storage <= 0):
+        print("NO FOOD. PLEASE REFILL")
+        exit()
     if total_score <= -2:
-        print('매우부정')
-        txt = str(scene_number)+",0,1"
-        judgement=1
+        if(judge==1): 
+            judgement=1
+            print('매우부정')
+            # ard.flush()
+            # ard.write()
+        sub_scene=1
+        txt = str(scene_number)+","+str(scene_number*10+sub_scene)+",0,"+str(judgement)
         socket_communication(txt)
 
     elif total_score < 0:
-        print('부정')
-        txt = str(scene_number)+",0,2"
-        judgement=2
+        if(judge==1): 
+            print('부정')
+            judgement=2
+            for i in range(1):
+                for j in range(1,6):
+                    r = random.randint(0,5)
+                    if(storage[r] <= 0):
+                        continue
+                    else: 
+                        ard.flush()
+                        ard.write(str.encode(str(r)))
+                        storage[r]-=1
+                        break
+        sub_scene=2
+        txt = str(scene_number)+","+str(scene_number*10+sub_scene)+",0,"+str(judgement)
         socket_communication(txt)
 
     elif total_score >= 2:
-        print('매우긍정')
-        txt = str(scene_number)+",0,4"
-        judgement=3
+        if(judge==1): 
+            print('매우긍정')
+            judgement=4
+            for i in range(3):
+                for j in range(1,6):
+                    r = random.randint(0,5)
+                    if(storage[r] <= 0):
+                        continue
+                    else: 
+                        ard.flush()
+                        ard.write(str.encode(str(r)))
+                        storage[r]-=1
+                        break
+        sub_scene=4
+        txt = str(scene_number)+","+str(scene_number*10+sub_scene)+",0,"+str(judgement)
         socket_communication(txt)
 
     else:
-        print('긍정')
-        txt = str(scene_number)+",0,3"
-        judgement=4
+        if(judge==1): 
+            print('긍정')
+            judgement=3
+            for i in range(2):
+                for j in range(1,6):
+                    r = random.randint(0,5)
+                    if(storage[r] <= 0):
+                        continue
+                    else: 
+                        ard.flush()
+                        ard.write(str.encode(str(r)))
+                        storage[r]-=1
+                        break
+        sub_scene=3
+        txt = str(scene_number)+","+str(scene_number*10+sub_scene)+",0,"+str(judgement)
         socket_communication(txt)
 
 def coin_detect():
-    global coin, status
-    port = '/dev/ttyACM0'
-    ard = serial.Serial(port,9600,timeout=5)
-    time.sleep(2)
+    global coin, status, sub_scene
     i = 0
     coin = 0
 
@@ -355,7 +415,7 @@ def coin_detect():
             # print (mess)
             if(mess.isdigit()):
                 status = int(mess)
-            socket_communication(str(scene_number)+","+str(mask)+","+str(judgement)+",arduino,"+mess)
+                socket_communication(str(scene_number)+","+str(scene_number*10+sub_scene)+","+str(mask)+","+str(judgement)+","+mess)
             if(mess == "I"):
                 coin = 1
 
@@ -384,36 +444,66 @@ if __name__ == "__main__":
         coin = 0
         mask = 1
         judgement = 0
+        sub_scene=0
+
+        sub_scene=1
+        socket_communication("1,11")
         print(status)
         if(status <= 4): # ultrasonic sensor
+            sub_scene=2
+            socket_communication("2,21")
             print(str(scene_number)+ ", TTS WAIT")
             time.sleep(5)
             scene_number += 1
             # Mask Detection (2)
+            sub_scene=1
             mask = mask_detection()
             if mask == 0:
                 print("마스크 착용으로 진행 불가")
-                socket_communication("2,1,0")
+                sub_scene=2
+                socket_communication("2,22,1")
             else:
                 print("continue")
-                socket_communication("2,0,0")
+                socket_communication("3,31,1")
+                time.sleep(1)
                 for i in range(2): # (3,4)
+                    scene_number+=1
+                    sub_scene=0
                     total_score += scene()
                     print(total_score)
-                    scene_number+=1
+
                 scene_number+=1
-                eval() # 금액 제시 및 최종 판정 (5,6)
+                sub_scene=0
+                eval(0) # 금액 제시 및 최종 판정 (5,6)
                 print(str(scene_number)+ ", TTS WAIT")
                 time.sleep(5)
                 coin = 0
-                while(coin != 1):
+                sec = 0
+                
+                while True:
                     print("INSERT COIN")
-                scene_number+=1
-                eval()
-                print(str(scene_number)+ ", TTS WAIT")
-                time.sleep(5)
-                scene_number+=1
-                socket_communication(str(scene_number) + "," + str(mask) + "," + str(judgement))
+                    print(coin)
+                    cur = time.time()
+                    time.sleep(1)
+                    sec += 1
+                    if(sec > 10):
+                        break
+                    if(coin >= 1):
+                        break
+                if(coin == 0):
+                    scene_number = 6
+                    sub_scene=5
+                    socket_communication(str(scene_number)+","+str(scene_number*10+sub_scene)+","+str(mask))
+                    time.sleep(1)
+                else:
+                    scene_number+=1
+                    eval(1)
+                    print(str(scene_number)+ ", TTS WAIT")
+                    time.sleep(5)
+
+                scene_number=7
+                sub_scene=0
+                socket_communication(str(scene_number) + "," +str(scene_number*10+sub_scene) + "," + str(mask) + "," + str(judgement))
                 print("RESTART, PLEASE WAIT 10 SECONDS")
                 time.sleep(10)
 
