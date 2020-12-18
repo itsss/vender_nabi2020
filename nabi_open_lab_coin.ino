@@ -2,9 +2,9 @@
 
 const long bud_rate = 9600; // 마스터 컴퓨터랑 똑같은 값으로 맞춰야 함
 const int vel = 30; // 최소:0~최대:90
-const int dir = 1; // 1(CW) or -1(CCW)
+const int dir = 1; // 1(CW) or -1(CCW)                  
 const int vel_com = vel*dir + 90; // 범위: 0~180
-const long rot_time = 660; // 회전을 1초간 지속
+const long rot_time = 4000; // 회전을 1초간 지속
 
 //const int space_per_snack = 2;
 //const float speed_at_5v = 0.165/60;
@@ -76,6 +76,7 @@ void loop() {
   // Calculating the distance
   distance = duration * 0.034 / 2; // Speed of sound wave divided by 2 (go and back)
   // Displays the distance on the Serial Monitor
+  if((distance/10)>=9) distance=90;
   Serial.println(distance/10);
 }
 

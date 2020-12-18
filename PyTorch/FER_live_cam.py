@@ -50,7 +50,7 @@ coin = 0
 judgement = 0
 sub_scene=0
 
-storage = [5,5,5,5,5,5]
+storage = [999999,999999,999999,999999,999999,999999]
 
 portar = '/dev/ttyACM0'
 ard = serial.Serial(portar,9600,timeout=5)
@@ -280,12 +280,12 @@ def cal_average(num):
 
 def scene():
     global sub_scene
-    
-    print(str(scene_number)+", TTS OUTPUT")
-    time.sleep(5)
-    print(str(scene_number)+", TTS END")
+    if int(scene_number) != 3:
+        print(str(scene_number)+", TTS OUTPUT")
+        time.sleep(1)
+        print(str(scene_number)+", TTS END")
+        
     sw = 0
-
     p=pyaudio.PyAudio() # start the PyAudio class
     stream=p.open(format=pyaudio.paInt16,channels=1,rate=RATE,input=True,
               frames_per_buffer=CHUNK) #uses default input device
@@ -297,7 +297,7 @@ def scene():
         data = np.fromstring(stream.read(CHUNK),dtype=np.int16)
         
         for d in data:
-            if abs(d) > 5000:
+            if abs(d) > 5000 or scene_number == 3:
                 print("START")
                 duration = 0
                 val.append(emotion_classification())
@@ -320,14 +320,14 @@ def scene():
         sub_scene=2
         # socket_communication(str(scene_number)+",999999999")
         socket_communication(str(scene_number)+","+str(scene_number*10+2)+",0")
-        time.sleep(3)
+        time.sleep(1)
         return -1
     else:
         print(str(scene_number)+","+str(scene_number*10+1)+",0")
         sub_scene=1
         # socket_communication(str(scene_number)+",999999999")
         socket_communication(str(scene_number)+","+str(scene_number*10+2)+",0")
-        time.sleep(3)
+        time.sleep(1)
         return 1
 
 def eval(judge):
@@ -340,18 +340,30 @@ def eval(judge):
         exit()
     if total_score <= -2:
         if(judge==1): 
-            judgement=1
+            judgement=4
             print('매우부정')
+            for i in range(0):
+                for j in range(1,6):
+                    r = random.randint(0,5)
+                    if(storage[r] <= 0):
+                        continue
+                    else: 
+                        ard.flush()
+                        ard.write(str.encode(str(r)))
+                        time.sleep(2)
+                        #ard.write([r])
+                        storage[r]-=1
+                        break
             # ard.flush()
             # ard.write()
-        sub_scene=1
+        sub_scene=4
         txt = str(scene_number)+","+str(scene_number*10+sub_scene)+",0,"+str(judgement)
         socket_communication(txt)
 
     elif total_score < 0:
         if(judge==1): 
             print('부정')
-            judgement=2
+            judgement=3
             for i in range(1):
                 for j in range(1,6):
                     r = random.randint(0,5)
@@ -360,34 +372,18 @@ def eval(judge):
                     else: 
                         ard.flush()
                         ard.write(str.encode(str(r)))
+                        time.sleep(2)
+                        #ard.write([r])
                         storage[r]-=1
                         break
-        sub_scene=2
+        sub_scene=3
         txt = str(scene_number)+","+str(scene_number*10+sub_scene)+",0,"+str(judgement)
         socket_communication(txt)
 
     elif total_score >= 2:
         if(judge==1): 
             print('매우긍정')
-            judgement=4
-            for i in range(3):
-                for j in range(1,6):
-                    r = random.randint(0,5)
-                    if(storage[r] <= 0):
-                        continue
-                    else: 
-                        ard.flush()
-                        ard.write(str.encode(str(r)))
-                        storage[r]-=1
-                        break
-        sub_scene=4
-        txt = str(scene_number)+","+str(scene_number*10+sub_scene)+",0,"+str(judgement)
-        socket_communication(txt)
-
-    else:
-        if(judge==1): 
-            print('긍정')
-            judgement=3
+            judgement=1
             for i in range(2):
                 for j in range(1,6):
                     r = random.randint(0,5)
@@ -396,9 +392,31 @@ def eval(judge):
                     else: 
                         ard.flush()
                         ard.write(str.encode(str(r)))
+                        time.sleep(2)
+                        #ard.write([r])
                         storage[r]-=1
                         break
-        sub_scene=3
+        sub_scene=1
+        txt = str(scene_number)+","+str(scene_number*10+sub_scene)+",0,"+str(judgement)
+        socket_communication(txt)
+
+    else:
+        if(judge==1): 
+            print('긍정')
+            judgement=2
+            for i in range(2):
+                for j in range(1,6):
+                    r = random.randint(0,5)
+                    if(storage[r] <= 0):
+                        continue
+                    else: 
+                        ard.flush()
+                        ard.write(str.encode(str(r)))
+                        time.sleep(2)
+                        #ard.write([r])
+                        storage[r]-=1
+                        break
+        sub_scene=2
         txt = str(scene_number)+","+str(scene_number*10+sub_scene)+",0,"+str(judgement)
         socket_communication(txt)
 
@@ -449,11 +467,12 @@ if __name__ == "__main__":
         sub_scene=1
         socket_communication("1,11")
         print(status)
-        if(status <= 4): # ultrasonic sensor
+        time.sleep(0.01)
+        if(status <= 7): # ultrasonic sensor
             sub_scene=2
             socket_communication("2,21")
             print(str(scene_number)+ ", TTS WAIT")
-            time.sleep(5)
+            # time.sleep(2)
             scene_number += 1
             # Mask Detection (2)
             sub_scene=1
@@ -464,14 +483,15 @@ if __name__ == "__main__":
                 socket_communication("2,22,1")
             else:
                 print("continue")
-                socket_communication("3,31,1")
-                time.sleep(1)
+                socket_communication("3,31,0")
+                time.sleep(0.5)
                 for i in range(2): # (3,4)
                     scene_number+=1
                     sub_scene=0
                     total_score += scene()
+                    #total_score += 1
                     print(total_score)
-
+                time.sleep(4)
                 scene_number+=1
                 sub_scene=0
                 eval(0) # 금액 제시 및 최종 판정 (5,6)
@@ -486,7 +506,7 @@ if __name__ == "__main__":
                     cur = time.time()
                     time.sleep(1)
                     sec += 1
-                    if(sec > 10):
+                    if(sec > 15):
                         break
                     if(coin >= 1):
                         break
