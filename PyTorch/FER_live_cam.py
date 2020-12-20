@@ -62,9 +62,17 @@ def load_trained_model(model_path):
     return model
 
 
+def cal_average(num):
+    sum_num = 0
+    for t in num:
+        sum_num = sum_num + t
+
+    avg = sum_num / len(num)
+    return avg
+
 def FER_live_cam():
     TIMER = int(2)
-    state = ""
+    state = []
     ps_state = '987654321'
 
     model = load_trained_model('./models/FER_trained_model.pt')
@@ -98,7 +106,11 @@ def FER_live_cam():
                 ps_state = ps
                 top_p, top_class = ps.topk(1, dim=1)
 
-                state = int(top_class.numpy())
+                state_val = int(top_class.numpy())
+                if state_val == 1:
+                    state.append(1)
+                else:
+                    state.append(-1)
                 # print(int(top_class.numpy()))
                 pred = emotion_dict[int(top_class.numpy())]
             cv2.putText(frame, pred, (x, y), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 1)
@@ -114,7 +126,12 @@ def FER_live_cam():
 
     cap.release()
     cv2.destroyAllWindows()
-    return state, ps_state
+    
+    state_avg = cal_average(state)
+    final_val = 0
+    if state_avg > 0:
+        return 1, ps_state
+    return -1, ps_state
 
 def detect_and_predict_mask(frame, faceNet, maskNet):
 	(h, w) = frame.shape[:2]
@@ -177,7 +194,6 @@ def detect_and_predict_mask(frame, faceNet, maskNet):
 
 def mask_detection():
     decision = 0
-    TIMER = int(2)
     # construct the argument parser and parse the arguments
 
     # load our serialized face detector model from disk
@@ -194,11 +210,10 @@ def mask_detection():
     # initialize the video stream and allow the camera sensor to warm up
     print("[INFO] starting video stream...")
     vs = VideoStream(src=0).start()
-    time.sleep(2.0)
-    prev = time.time()
+    time.sleep(0.1) # change from 2.0 to 0.1
     # loop over the frames from the video stream
-
-    while TIMER >= 0:
+    
+    while mask_flag != False:
         # grab the frame from the threaded video stream and resize it
         # to have a maximum width of 400 pixels
         frame = vs.read()
@@ -220,30 +235,25 @@ def mask_detection():
             # label = "Mask" if mask > withoutMask else "No Mask"
 
             if mask > withoutMask:
-                label = "Mask"
+                mask_flag = True
                 decision = 0
             else:
-                label = "No Mask"
+                mask_flag = False
                 decision = 1
-            color = (0, 255, 0) if label == "Mask" else (0, 0, 255)
+            color = (0, 255, 0) if mask_flag == True else (0, 0, 255)
 
             # include the probability in the label
-            label = "{}: {:.2f}%".format(label, max(mask, withoutMask) * 100)
+#            label = "{}: {:.2f}%".format(label, max(mask, withoutMask) * 100)
 
             # display the label and bounding box rectangle on the output
             # frame
-            cv2.putText(frame, label, (startX, startY - 10),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.45, color, 2)
-            cv2.rectangle(frame, (startX, startY), (endX, endY), color, 2)
+#            cv2.putText(frame, label, (startX, startY - 10),cv2.FONT_HERSHEY_SIMPLEX, 0.45, color, 2)
+#            cv2.rectangle(frame, (startX, startY), (endX, endY), color, 2)
 
         # show the output frame
         # cv2.imshow("Frame", frame)
         key = cv2.waitKey(1) & 0xFF
-        cur = time.time()
         # if the `q` key was pressed, break from the loop
-        if cur - prev >= 1:
-            prev = cur
-            TIMER = TIMER - 1
         if key == ord("q"):
             break
 
@@ -270,13 +280,6 @@ def emotion_classification():
     else:
         return -1
 
-def cal_average(num):
-    sum_num = 0
-    for t in num:
-        sum_num = sum_num + t
-
-    avg = sum_num / len(num)
-    return avg
 
 def scene():
     global sub_scene
@@ -300,7 +303,6 @@ def scene():
             if abs(d) > 5000 or scene_number == 3:
                 print("START")
                 duration = 0
-                val.append(emotion_classification())
                 val.append(emotion_classification())
                 sw = 1
                 break
@@ -472,11 +474,12 @@ if __name__ == "__main__":
             sub_scene=2
             socket_communication("2,21")
             print(str(scene_number)+ ", TTS WAIT")
+            mask = mask_detection() # 20.12.20 수정
+
             # time.sleep(2)
             scene_number += 1
             # Mask Detection (2)
             sub_scene=1
-            mask = mask_detection()
             if mask == 0:
                 print("마스크 착용으로 진행 불가")
                 sub_scene=2
