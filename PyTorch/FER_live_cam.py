@@ -480,6 +480,7 @@ if __name__ == "__main__":
                 print("마스크 착용으로 진행 불가")
                 sub_scene=2
                 socket_communication("2,22,1")
+                time.sleep(4)
             else:
                 print("continue")
                 socket_communication("3,31,0")
