@@ -332,6 +332,7 @@ def scene():
 def eval(judge):
     global total_score, judgement, sub_scene
     sum_storage = 0
+    sto = ['1','3','4','5','6']
     for i in range(1,6):
        sum_storage += storage[i]
     if(sum_storage <= 0):
@@ -341,19 +342,14 @@ def eval(judge):
         if(judge==1): 
             judgement=4
             print('매우부정')
-            for i in range(0):
-                for j in range(1,6):
-                    r = random.randint(0,5)
-                    if(storage[r] <= 0):
-                        continue
-                    else: 
-                        ard.flush()
-                        wr = "b'"+str(r)+"'"
-                        ard.write(wr)
-                        time.sleep(2)
-                        #ard.write([r])
-                        storage[r]-=1
-                        break
+            count = 0
+            random.shuffle(sto)
+            rs = sto[:count]
+            r = ''.join(rs)
+            ard.flush()
+            wr = "b'"+str(r)+"'"
+            ard.write(str.encode(wr))
+            time.sleep(2)
             # ard.flush()
             # ard.write()
         sub_scene=4
@@ -364,19 +360,14 @@ def eval(judge):
         if(judge==1): 
             print('부정')
             judgement=3
-            for i in range(1):
-                for j in range(1,6):
-                    r = random.randint(0,5)
-                    if(storage[r] <= 0):
-                        continue
-                    else: 
-                        ard.flush()
-                        wr = "b'"+str(r)+"'"
-                        ard.write(wr)
-                        time.sleep(2)
-                        #ard.write([r])
-                        storage[r]-=1
-                        break
+            count = 1
+            random.shuffle(sto)
+            rs = sto[:count]
+            r = ''.join(rs)
+            ard.flush()
+            wr = "b'"+str(r)+"'"
+            ard.write(str.encode(wr))
+            time.sleep(2)
         sub_scene=3
         txt = str(scene_number)+","+str(scene_number*10+sub_scene)+",0,"+str(judgement)
         socket_communication(txt)
@@ -385,19 +376,14 @@ def eval(judge):
         if(judge==1): 
             print('매우긍정')
             judgement=1
-            for i in range(2):
-                for j in range(1,6):
-                    r = random.randint(0,5)
-                    if(storage[r] <= 0):
-                        continue
-                    else: 
-                        ard.flush()
-                        wr = "b'"+str(r)+"'"
-                        ard.write(wr)
-                        time.sleep(2)
-                        #ard.write([r])
-                        storage[r]-=1
-                        break
+            count = 2
+            random.shuffle(sto)
+            rs = sto[:count]
+            r = ''.join(rs)
+            ard.flush()
+            wr = "b'"+str(r)+"'"
+            ard.write(str.encode(wr))
+            time.sleep(2)
         sub_scene=1
         txt = str(scene_number)+","+str(scene_number*10+sub_scene)+",0,"+str(judgement)
         socket_communication(txt)
@@ -406,19 +392,14 @@ def eval(judge):
         if(judge==1): 
             print('긍정')
             judgement=2
-            for i in range(2):
-                for j in range(1,6):
-                    r = random.randint(0,5)
-                    if(storage[r] <= 0):
-                        continue
-                    else: 
-                        ard.flush()
-                        wr = "b'"+str(r)+"'"
-                        ard.write(wr)
-                        time.sleep(2)
-                        #ard.write([r])
-                        storage[r]-=1
-                        break
+            count = 1
+            random.shuffle(sto)
+            rs = sto[:count]
+            r = ''.join(rs)
+            ard.flush()
+            wr = "b'"+str(r)+"'"
+            ard.write(str.encode(wr))
+            time.sleep(2)
         sub_scene=2
         txt = str(scene_number)+","+str(scene_number*10+sub_scene)+",0,"+str(judgement)
         socket_communication(txt)
@@ -517,7 +498,7 @@ if __name__ == "__main__":
                 if(coin == 0):
                     scene_number = 6
                     sub_scene=5
-                socket_communication(str(scene_number)+","+str(scene_number*10+sub_scene)+","+str(mask))
+                    socket_communication(str(scene_number)+","+str(scene_number*10+sub_scene)+","+str(mask))
                     time.sleep(1)
                 else:
                     scene_number+=1
@@ -528,8 +509,8 @@ if __name__ == "__main__":
                 scene_number=7
                 sub_scene=0
                 socket_communication(str(scene_number) + "," +str(scene_number*10+sub_scene) + "," + str(mask) + "," + str(judgement))
-                print("RESTART, PLEASE WAIT 10 SECONDS")
-                time.sleep(10)
+                print("RESTART, PLEASE WAIT 5 SECONDS")
+                time.sleep(5)
 
 # if __name__ == "__main__":
 #     state = FER_live_cam()
@@ -601,6 +582,7 @@ if __name__ == "__main__":
 #         score = self.current_scene.eval()
 #         #UDP to TouchDesigner
 #
+
 
 
 
