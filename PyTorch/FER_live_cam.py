@@ -67,7 +67,10 @@ def cal_average(num):
     for t in num:
         sum_num = sum_num + t
 
-    avg = sum_num / len(num)
+    try:
+        avg = sum_num / len(num)
+    except ZeroDivisionError as e:
+        return 0
     return avg
 
 def FER_live_cam():
@@ -194,6 +197,7 @@ def detect_and_predict_mask(frame, faceNet, maskNet):
 
 def mask_detection():
     decision = 0
+    TIMER = int(2)
     # construct the argument parser and parse the arguments
 
     # load our serialized face detector model from disk
@@ -211,9 +215,10 @@ def mask_detection():
     print("[INFO] starting video stream...")
     vs = VideoStream(src=0).start()
     time.sleep(0.1) # change from 2.0 to 0.1
+    prev = time.time()
     # loop over the frames from the video stream
     
-    while mask_flag != False:
+    while TIMER >= 0:
         # grab the frame from the threaded video stream and resize it
         # to have a maximum width of 400 pixels
         frame = vs.read()
@@ -253,7 +258,11 @@ def mask_detection():
         # show the output frame
         # cv2.imshow("Frame", frame)
         key = cv2.waitKey(1) & 0xFF
+        cur = time.time()
         # if the `q` key was pressed, break from the loop
+        if cur - prev >= 1:
+            prev = cur
+            TIMER = TIMER - 1
         if key == ord("q"):
             break
 
@@ -478,6 +487,7 @@ if __name__ == "__main__":
             sub_scene=2
             socket_communication("2,21")
             print(str(scene_number)+ ", TTS WAIT")
+            time.sleep(0.5)
             mask = mask_detection() # 20.12.20 수정
 
             # time.sleep(2)
