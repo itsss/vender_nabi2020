@@ -351,7 +351,8 @@ def eval(judge):
                         continue
                     else: 
                         ard.flush()
-                        ard.write(str.encode(str(r)))
+                        wr = "b'"+str(r)+"'"
+                        ard.write(wr)
                         time.sleep(2)
                         #ard.write([r])
                         storage[r]-=1
@@ -373,7 +374,8 @@ def eval(judge):
                         continue
                     else: 
                         ard.flush()
-                        ard.write(str.encode(str(r)))
+                        wr = "b'"+str(r)+"'"
+                        ard.write(wr)
                         time.sleep(2)
                         #ard.write([r])
                         storage[r]-=1
@@ -393,7 +395,8 @@ def eval(judge):
                         continue
                     else: 
                         ard.flush()
-                        ard.write(str.encode(str(r)))
+                        wr = "b'"+str(r)+"'"
+                        ard.write(wr)
                         time.sleep(2)
                         #ard.write([r])
                         storage[r]-=1
@@ -413,7 +416,8 @@ def eval(judge):
                         continue
                     else: 
                         ard.flush()
-                        ard.write(str.encode(str(r)))
+                        wr = "b'"+str(r)+"'"
+                        ard.write(wr)
                         time.sleep(2)
                         #ard.write([r])
                         storage[r]-=1
