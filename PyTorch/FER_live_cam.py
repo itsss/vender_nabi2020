@@ -348,7 +348,8 @@ def eval(judge):
                         continue
                     else: 
                         ard.flush()
-                        ard.write(str.encode(str(r)))
+                        wr = "b'"+str(r)+"'"
+                        ard.write(wr)
                         time.sleep(2)
                         #ard.write([r])
                         storage[r]-=1
@@ -370,7 +371,8 @@ def eval(judge):
                         continue
                     else: 
                         ard.flush()
-                        ard.write(str.encode(str(r)))
+                        wr = "b'"+str(r)+"'"
+                        ard.write(wr)
                         time.sleep(2)
                         #ard.write([r])
                         storage[r]-=1
@@ -390,7 +392,8 @@ def eval(judge):
                         continue
                     else: 
                         ard.flush()
-                        ard.write(str.encode(str(r)))
+                        wr = "b'"+str(r)+"'"
+                        ard.write(wr)
                         time.sleep(2)
                         #ard.write([r])
                         storage[r]-=1
@@ -410,7 +413,8 @@ def eval(judge):
                         continue
                     else: 
                         ard.flush()
-                        ard.write(str.encode(str(r)))
+                        wr = "b'"+str(r)+"'"
+                        ard.write(wr)
                         time.sleep(2)
                         #ard.write([r])
                         storage[r]-=1
@@ -480,7 +484,7 @@ if __name__ == "__main__":
                 print("마스크 착용으로 진행 불가")
                 sub_scene=2
                 socket_communication("2,22,1")
-                time.sleep(4)
+                time.sleep(5)
             else:
                 print("continue")
                 socket_communication("3,31,0")
@@ -496,7 +500,7 @@ if __name__ == "__main__":
                 sub_scene=0
                 eval(0) # 금액 제시 및 최종 판정 (5,6)
                 print(str(scene_number)+ ", TTS WAIT")
-                time.sleep(5)
+                # time.sleep(5)
                 coin = 0
                 sec = 0
                 
@@ -513,7 +517,7 @@ if __name__ == "__main__":
                 if(coin == 0):
                     scene_number = 6
                     sub_scene=5
-                    socket_communication(str(scene_number)+","+str(scene_number*10+sub_scene)+","+str(mask))
+                socket_communication(str(scene_number)+","+str(scene_number*10+sub_scene)+","+str(mask))
                     time.sleep(1)
                 else:
                     scene_number+=1
